@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tab-jev — an in-context learner for text &amp; tabular data</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.min.css">
+<style>
+  .credit { position: fixed; bottom: 8px; left: 12px; font-size: 12px; color: #94a3b8; z-index: 30; font-family: system-ui, sans-serif; }
+  .credit a { color: #60a5fa; }
+  .kicker { color: #7dd3fc; font-size: 0.7em; letter-spacing: 0.15em; text-transform: uppercase; }
+  table { font-size: 0.75em; }
+  .two-col { display: flex; gap: 1.2em; text-align: left; }
+  .two-col > div { flex: 1; }
+  .pill { display:inline-block; background:#1e293b; border-radius: 8px; padding: 2px 12px; margin: 2px; font-size: 0.8em; }
+</style>
+</head>
+<body>
+<div class="credit">
+  Independent overview prepared by <a href="https://github.com/ratatoskr-labs">ratatoskr-labs</a> —
+  not affiliated with the authors. Upstream project:
+  <a href="https://github.com/edamame-labs/tab-jev">edamame-labs/tab-jev</a> (Apache-2.0). All credit for tab-jev itself is theirs.
+</div>
+<div class="reveal"><div class="slides">
+
+<section>
+  <p class="kicker">independent overview · ratatoskr-labs</p>
+  <h1>tab-jev</h1>
+  <h3>A jev-like model + a tabular foundation model =<br>an in-context learner for your text &amp; tabular data</h3>
+  <p style="color:#94a3b8">upstream: <a href="https://github.com/edamame-labs/tab-jev">github.com/edamame-labs/tab-jev</a> · Apache-2.0 · pre-release v0.1.0.dev0</p>
+</section>
+
+<section>
+  <h2>The problem it solves</h2>
+  <ul>
+    <li>Classification on data that mixes <b>text</b> (reviews, tickets, pitches) and <b>table</b> (numbers, categories)</li>
+    <li>Only a few labeled rows — dozens to a few thousand</li>
+    <li>You act on the probability: approve · escalate · block</li>
+    <li>Typical: churn, fraud &amp; claims screening, lead scoring, ticket escalation</li>
+  </ul>
+  <p class="fragment">An LLM reads the text on day one — but can't see your table columns.<br>
+  A tabular model fuses columns — but needs labels and can't read prose.</p>
+  <p class="fragment" style="color:#7dd3fc"><b>tab-jev: let each plane do what it's good at, then combine.</b></p>
+</section>
+
+<section>
+  <h2>Two pluggable planes</h2>
+  <div class="two-col">
+    <div>
+      <h3 style="color:#7dd3fc">Jev plane — reads text</h3>
+      <ul>
+        <li>Typed judgments: chosen option + probabilities</li>
+        <li>Jev request/response shape (TypeSafe API), or any LLM via logprobs/sampling</li>
+        <li><code>JevHTTP</code>, <code>OpenAICompatibleJev</code> adapters included</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="color:#7dd3fc">Tab plane — learns from labeled rows</h3>
+      <ul>
+        <li>Tabular foundation models (TabPFN, TabICL) predict by in-context learning — no training loop</li>
+        <li>Any scikit-learn-style classifier works</li>
+      </ul>
+    </div>
+  </div>
+  <p class="fragment" style="color:#7dd3fc">Flow: jev reads text → probabilities become new numeric columns → tab ICL-learns on table + jev columns.</p>
+  <p class="fragment" style="color:#94a3b8">tab-jev hosts no models — both planes are <code>Protocol</code>s. Bring your own backends.</p>
+</section>
+
+<section>
+  <h2>Why not just one model?</h2>
+  <ul>
+    <li>Jev alone — day-one answers, but blind to your table columns</li>
+    <li>Tabular alone — fuses all columns, but needs labels, can't read prose</li>
+    <li>10k+ labels — a supervised model (TF-IDF, embeddings, fine-tuning) wins</li>
+  </ul>
+  <p style="color:#7dd3fc"><b>tab-jev's regime: text and table EACH carry part of the signal, labels are scarce.</b></p>
+</section>
+
+<section>
+  <h2>Results on Kickstarter (upstream benchmark)</h2>
+  <table>
+    <thead><tr><th>labeled rows</th><th>tab-jev (jev → tab)</th><th>TFM, table only</th><th>jev text + calibration</th><th>TF-IDF + table, LR</th></tr></thead>
+    <tbody>
+      <tr><td>64</td><td><b>0.684</b></td><td>0.641</td><td>0.682</td><td>0.623</td></tr>
+      <tr><td>256</td><td><b>0.745</b></td><td>0.688</td><td>0.682</td><td>0.649</td></tr>
+      <tr><td>1,024</td><td><b>0.765</b></td><td>0.696</td><td>0.682</td><td>0.662</td></tr>
+    </tbody>
+  </table>
+  <p style="color:#94a3b8;font-size:0.7em">AUC on 2,002 test projects, mean over label draws. Jev API + TabPFN 3.5. Source: upstream README &amp; demo/.</p>
+</section>
+
+<section>
+  <h2>The contract: Question / Answer</h2>
+  <ul>
+    <li><code>Question(type, instructions, criteria)</code> — Jev's /v1/systemone shape</li>
+    <li><span class="pill">noul</span> yes/no → single probability &nbsp; <span class="pill">choice</span> options → distribution &nbsp; <span class="pill">score</span> 2–10 levels → distribution</li>
+    <li><code>Answer(type, noul, choice, probabilities, confidence, legend)</code></li>
+    <li>Backends declare <code>probability_source</code>: native / logprobs / sampling</li>
+    <li><b>Rubrics</b>: extra questions about text columns → each option's probability becomes a new numeric column for tab</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Pipeline machinery</h2>
+  <ul>
+    <li><b>jev_then_tab</b> — jev features + jev answer; tab predicts from everything</li>
+    <li><b>tab_then_jev</b> — tab first; jev makes the final call with tab's OOF probabilities + labeled examples in state</li>
+    <li><b>parallel_blend</b> — both predict independently; cross-validated weighted average</li>
+    <li><b>Out-of-fold by construction</b> — no row's own label leaks into its features</li>
+    <li><b>Graceful degradation</b> — no labels → tab skips, jev answers; <code>TabLimits</code> violations fail loud before the backend is called</li>
+    <li><b>Few-shot</b> — <code>shots=N</code> puts class-balanced labeled examples into jev's state</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Exploratory findings (offline notebook)</h2>
+  <ul>
+    <li>Toy rule: buy = good review AND price &lt; 70 — each plane carries half the signal</li>
+    <li>Fake keyword-jev + LogisticRegression: tab receives [price, features:review.sentiment=±, jev:yes/no]</li>
+    <li>Zero labels → pipeline skips tab, jev answers alone (<code>skipped = {'tab'}</code>)</li>
+    <li>Memorizing-tab fake proves the OOF machinery — no self-label leakage</li>
+    <li><code>TabLimits(max_rows=10)</code> on 400 rows → rejected loudly before the backend is called</li>
+    <li>All three compositions beat jev-only on the toy rule (AUC 0.90–1.00 in-sample)</li>
+    <li>23/23 repo tests pass on Python 3.12</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Status &amp; fit</h2>
+  <ul>
+    <li>Pre-release v0.1.0.dev0 — API will change; core is small (pipeline.py ~100 lines)</li>
+    <li>Use when: few labels, mixed text+table, probability-driven decisions</li>
+    <li>Don't use when: no labels at all (jev alone) or 10k+ labels (supervised wins)</li>
+  </ul>
+  <h3 style="color:#7dd3fc">For ratatoskr-labs</h3>
+  <p>Candidate pattern for any "LLM reads text + structured model fuses" problem — the two-Protocol design maps cleanly onto our agent-factory worker briefs.</p>
+  <p style="color:#94a3b8;font-size:0.75em">Full write-up: exploratory_tab_jev.ipynb (in our clone) · PDF deck available on request</p>
+</section>
+
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.min.js"></script>
+<script>Reveal.initialize({ hash: true, slideNumber: true });</script>
+</body>
+</html>
