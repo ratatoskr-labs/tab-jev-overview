@@ -127,6 +127,117 @@
   </ul>
 </section>
 
+
+<section>
+  <h2>Worked example — one row, step by step</h2>
+  <p class="kicker">Kickstarter: will it get funded?</p>
+  <table style="font-size:0.62em">
+    <tr><th>name</th><th>desc (text)</th><th>goal</th><th>campaign_days</th><th>country</th><th>funded</th></tr>
+    <tr><td>Rust Belt Ride</td><td>A two-thousand-mile bicycle-powered painting documentary of America's industrial leftovers.</td><td>4,000</td><td>33.5</td><td>US</td><td style="color:#94a3b8">? ← predict</td></tr>
+  </table>
+  <div class="two-col" style="margin-top:0.4em">
+    <div>
+      <p style="color:#7dd3fc;margin:0.1em 0">Step 1 — jev reads the text</p>
+      <ul style="font-size:0.72em">
+        <li>Q: "Does the pitch sound compelling?" → <b>positive: 0.82</b> / negative: 0.18</li>
+        <li>Q: "Is the goal realistic for the scope?" → <b>realistic: 0.74</b></li>
+        <li>Q: "Will it reach its goal?" (target) → <b>true: 0.71</b></li>
+      </ul>
+    </div>
+    <div>
+      <p style="color:#7dd3fc;margin:0.1em 0">Step 2 — those become columns</p>
+      <table style="font-size:0.62em">
+        <tr><th>goal</th><th>campaign_days</th><th>…sentiment=positive</th><th>…realistic</th><th>jev:true</th><th>jev:false</th></tr>
+        <tr><td>4000</td><td>33.5</td><td>0.82</td><td>0.74</td><td>0.71</td><td>0.29</td></tr>
+      </table>
+      <p style="font-size:0.7em;color:#94a3b8;margin:0.3em 0">Step 3 — tab in-context-learns on the labeled rows *including these new columns*, then predicts this one.</p>
+    </div>
+  </div>
+  <p class="fragment" style="color:#7dd3fc">The intuition: jev is a <b>feature extractor you can talk to</b>. "A two-thousand-mile bicycle-powered documentary" is meaningless to a gradient boost — it becomes 0.82.</p>
+</section>
+
+<section>
+  <h2>Same dataset, three rows — watch the label arrive</h2>
+  <table style="font-size:0.6em">
+    <tr><th></th><th>desc</th><th>goal</th><th>days</th><th>jev:true</th><th>label</th></tr>
+    <tr><td>A</td><td>Urbio Vertical Garden — "magically magnetic"</td><td>15,000</td><td>40</td><td>0.55</td><td style="color:#4ade80">yes ✓ (in context)</td></tr>
+    <tr><td>B</td><td>365 Days of Quickies</td><td>500</td><td>30</td><td>0.62</td><td style="color:#4ade80">yes ✓ (in context)</td></tr>
+    <tr><td>C</td><td>The LOVE Project (Canceled)</td><td>10,000</td><td>75</td><td>0.31</td><td style="color:#4ade80">no ✓ (in context)</td></tr>
+    <tr style="background:#1e293b"><td>D</td><td>Rust Belt Ride — documentary</td><td>4,000</td><td>33.5</td><td>0.71</td><td style="color:#fbbf24">? ← in-context prediction</td></tr>
+  </table>
+  <ul style="font-size:0.75em">
+    <li class="fragment">TabPFN-style models learn <b>entirely from the labeled rows shown in context</b> — no weights are trained</li>
+    <li class="fragment">Row D is predicted by its *similarity* to A/B/C across <b>all</b> columns — table facts AND jev's text readings</li>
+    <li class="fragment">Add one row: the "model" changes instantly. That's in-context learning — and why the pipeline takes out-of-fold precautions</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Three more problems, the same shape</h2>
+  <table style="font-size:0.62em">
+    <tr><th></th><th>text column</th><th>table columns</th><th>target (jev question)</th><th>rubric examples</th></tr>
+    <tr><td><b>Fraud screening</b></td><td>transaction memo / chat log</td><td>amount, hour, country, account_age</td><td>noul: "Is this transaction fraudulent?"</td><td>"Does the memo read templated?" · "Urgency markers?"</td></tr>
+    <tr><td><b>Ticket escalation</b></td><td>support email</td><td>plan_tier, open_days, prior_tickets</td><td>choice: {escalate, standard}</td><td>"Customer sentiment?" · "Churn risk signals?"</td></tr>
+    <tr><td><b>Lead scoring</b></td><td>signup free-text + company blurb</td><td>employees, industry, source</td><td>score: 4 levels of fit</td><td>"ICP match?" · "Budget signals?"</td></tr>
+  </table>
+  <ul style="font-size:0.75em">
+    <li class="fragment">Every case: <b>the question you'd ask a smart colleague</b> becomes a rubric — jev turns it into a number</li>
+    <li class="fragment">Design the rubrics from domain knowledge, fixed BEFORE looking at results (the repo is strict about this)</li>
+  </ul>
+</section>
+
+<section data-auto-animate>
+  <h2>Feel it: the toy model, live</h2>
+  <p style="font-size:0.75em;color:#94a3b8">The notebook's toy rule: customers buy when the review is good AND price &lt; 70. jev only sees the text; tab fuses both.</p>
+  <div style="font-size:0.8em; text-align:left; max-width: 900px; margin: 0 auto">
+    <label>Review text:
+      <select id="rev" style="font-size:1em; background:#1e293b; color:#e2e8f0; border-radius:6px; padding:4px 10px">
+        <option value="good">"good product"</option>
+        <option value="bad">"bad product"</option>
+      </select>
+      &nbsp;&nbsp;Price: <b id="pv" style="color:#7dd3fc">50</b>
+      <input id="price" type="range" min="0" max="100" value="50" oninput="upd()" style="width:50%">
+    </label>
+    <div id="bars" style="margin-top:0.5em"></div>
+    <p id="verdict" style="font-size:0.9em"></p>
+  </div>
+  <p style="font-size:0.65em;color:#94a3b8">jev bar = what the text alone knows (the faked keyword judgment). tab bar = after fusing price. The gap IS the value of the second plane.</p>
+  <script>
+  function upd(){
+    const good = document.getElementById('rev').value === 'good';
+    const price = +document.getElementById('price').value;
+    document.getElementById('pv').textContent = price;
+    const jevP = good ? 0.8 : 0.2;                    // fake keyword jev
+    const trueBuy = good && price < 70;               // ground truth rule
+    // toy "tab": logistic-ish fusion of jev prob + price signal
+    const priceSignal = Math.max(0, Math.min(1, (70 - price) / 40 + 0.5));
+    const z = -2 + 6*jevP + 3*(priceSignal - 0.5);
+    const tabP = 1/(1 + Math.exp(-z));
+    const bar = (label, p, color) => `<div style="margin:6px 0"><span style="display:inline-block;width:90px">${label}</span>
+      <span style="display:inline-block;width:420px;background:#334155;border-radius:6px;vertical-align:middle">
+      <span style="display:inline-block;width:${(p*420).toFixed(0)}px;background:${color};border-radius:6px">&nbsp;</span></span>
+      <b style="color:${color}"> ${(p).toFixed(2)}</b></div>`;
+    document.getElementById('bars').innerHTML =
+      bar('jev (text only)', jevP, '#38bdf8') + bar('tab (fused)', tabP, '#4ade80');
+    document.getElementById('verdict').innerHTML =
+      `ground truth: <b style="color:${trueBuy?'#4ade80':'#f87171'}">${trueBuy?'buys':'does not buy'}</b> — ` +
+      (Math.abs(tabP - (trueBuy?1:0)) < Math.abs(jevP - (trueBuy?1:0)) ? 'fusing the table <b>helped</b> here.' : 'text alone was enough here — that happens too, fusion is a long-run bet.');
+  }
+  upd();
+  </script>
+</section>
+
+<section>
+  <h2>Intuition cheat-sheet</h2>
+  <ul>
+    <li><b>jev = a colleague reading the text</b>, returning calibrated-ish bets — great priors, blind to structured facts</li>
+    <li><b>tab = a colleague staring at the spreadsheet</b> — great at numeric patterns, can't read prose</li>
+    <li><b>rubrics = the questions you'd brief the reader with</b> — fixed a priori, they become the bridge columns</li>
+    <li><b>labels = the truth that lets tab learn how much to trust jev</b> — with zero labels you get jev's raw prior; with hundreds, tab corrects it</li>
+    <li><b>OOF machinery = honesty</b> — few-label setups are where leakage hides; the pipeline refuses it structurally</li>
+  </ul>
+</section>
+
 <section>
   <h2>Status &amp; fit</h2>
   <ul>
